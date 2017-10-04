@@ -1,0 +1,140 @@
+﻿<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>Frame Rate and Timecode Calculator AMP Plugin Sample</title>
+    <meta name="description" content="Frame Rate and Timecode Calculator plugin for Azure Media Player (AMP)">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <!--*****START OF Azure Media Player scripts*****-->
+    <!--Note: DO NOT USE the "latest" folder in production. Replace "latest" with a version number like "1.0.0"-->
+    <!--EX:<script src="//amp.azure.net/libs/amp/1.0.0/azuremediaplayer.min.js"></script>-->
+    <!--Azure Media Player versions can be queried from //amp.azure.net/libs/amp/latest/docs/changelog.html-->
+    <link href="//amp.azure.net/libs/amp/latest/skins/amp-default/azuremediaplayer.min.css" rel="stylesheet">
+    <script src="//amp.azure.net/libs/amp/latest/azuremediaplayer.min.js"></script>
+    <!--*****END OF Azure Media Player scripts*****-->
+    <!--*****START OF Azure Media Player frame rate and timecode calculator plugin scripts*****-->
+    <script src="amp-frameRateTimecodeCalculator.js"></script>
+    <!--*****END OF Azure Media Player frame rate and timecode calculator plugin scripts*****-->
+</head>
+
+<body>
+    <h1>Frame Rate and Timecode Calculator AMP Plugin Sample</h1>
+
+    <video id="azuremediaplayer" class="azuremediaplayer amp-default-skin" controls autoplay width="640" height="400" tabindex="0">
+        <source src="" type="application/vnd.ms-sstr+xml" />
+        <p class="amp-no-js">To view this video please enable JavaScript, and consider upgrading to a web browser that supports HTML5 video</p>
+    </video>
+
+    <p><strong>Frame Rate:</strong> <span id="frameratevalue">Not available</span></p>
+    <p><strong>Time Scale:</strong> <span id="timescalevalue">Not available</span></p>
+    <p><strong>Current Timecode:</strong> <span id="currenttimecodevalue">Not available</span></p>
+    <p>
+        <input type="checkbox" id="dropframevalue" onchange="toggleCheckbox(this)" style="margin-right: 5px; margin-left: 0px;"/>
+        <strong>Enable Drop Frame Timecode</strong>
+    </p>
+    <div>
+        <input type="text" placeholder="00:00:00:00 / 00:00:00;00" id="seektimecodevalue" style="width: 160px;" onkeyup="onKeyUp(event)" />
+        <input type="button" value="Seek to Timecode" onclick="onSeekToTimecode()" />
+    </div>
+
+    <script>
+        var player = amp('azuremediaplayer', {
+            "nativeControlsForTouch": false,
+            "plugins": {
+                // Enable plugin
+                "frameRateTimecodeCalculator": {
+                    // Optional: default frame rate value to use if calculation fails; if not provided, the default value is 30
+                    "default": 30,
+                    // Optional: default time scale value to use if client manifest parsing fails: if not provided, the default value is 10000000
+                    "timeScale": 10000000,
+                    // Optional: Flag to determine whether to use drop frame timecode or not for 29.97fps; if not provided, the default value is false (non-drop frame timecode)
+                    "dropFrame": false
+                }
+            }
+        });
+
+        player.src([{
+            // Azure Media Services Overview
+            src: "//amssamples.streaming.mediaservices.windows.net/91492735-c523-432b-ba01-faba6c2206a2/AzureMediaServicesPromo.ism/manifest",
+            // PlayReady / Widevine (dynamic)
+            //src: "//amssamples.streaming.mediaservices.windows.net/622b189f-ec39-43f2-93a2-201ac4e31ce1/BigBuckBunny.ism/manifest",
+            // PlayReady (static)
+            //src: "//amssamples.streaming.mediaservices.windows.net/de1470b3-7b3c-4902-ab53-d19b37ef3bd7/TearsOfSteelTeaser.ism/manifest",
+            // AES (dynamic)
+            //src: "//amssamples.streaming.mediaservices.windows.net/49b57c87-f5f3-48b3-ba22-c55cfdffa9cb/Sintel.ism/manifest",
+            type: "application/vnd.ms-sstr+xml"
+        }]);
+
+        player.ready(function () {
+            var frameRateValueElement = document.getElementById('frameratevalue');
+            frameRateValueElement.textContent = 'Calculating...';
+
+            var timeScaleValueElement = document.getElementById('timescalevalue');
+            timeScaleValueElement.textContent = 'Calculating...';
+
+            var dropFrameValueElement = document.getElementById('dropframevalue');
+            dropFrameValueElement.checked = player.dropFrame();
+
+            var currentTimeCodeElement = document.getElementById('currenttimecodevalue');
+
+            player.addEventListener(amp.eventName.framerateready, function () {
+                onFrameRateReady();
+            });
+
+            player.addEventListener(amp.eventName.framerateerror, function () {
+                alert("There was an error calculating the Frame Rate and Time Scale. Using default values in configuration.");
+
+                onFrameRateReady();
+            });
+
+            function onFrameRateReady() {
+                frameRateValueElement.textContent = player.frameRate();
+                timeScaleValueElement.textContent = player.timeScale();
+                currentTimeCodeElement.textContent = player.toTimecode(player.toPresentationTime(player.currentTime()));
+
+                player.addEventListener(amp.eventName.timeupdate, function () {
+                    currentTimeCodeElement.textContent = player.toTimecode(player.toPresentationTime(player.currentTime()));
+                });
+
+                player.addEventListener(amp.eventName.dropframechanged, function () {
+                    currentTimeCodeElement.textContent = player.toTimecode(player.toPresentationTime(player.currentTime()));
+                });
+            }
+        });
+
+        function toggleCheckbox(element) {
+            player.dropFrame(!!element.checked);
+        }
+
+        var seekTimeCodeElement = document.getElementById('seektimecodevalue');
+
+        function onKeyUp(event) {
+            event.preventDefault();
+
+            if (event.keyCode === 13) {
+                onSeekToTimecode();
+            }
+        }
+
+        function onSeekToTimecode() {
+            var absoluteTime = player.fromTimecode(seekTimeCodeElement.value);
+
+            if (absoluteTime === null) {
+                alert("Invalid Timecode value: '" + seekTimeCodeElement.value + "'");
+                return;
+            }
+
+            player.currentTime(player.fromPresentationTime(absoluteTime));
+        }
+    </script>
+
+    <footer>
+        <br />
+        <p>&copy; Southworks 2017</p>
+    </footer>
+</body>
+
+</html>
